@@ -1,8 +1,9 @@
 export async function requireAuth(req, res, next) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY;
 
-  if (!supabaseUrl || !supabaseServiceKey) {
+  if (!supabaseUrl || !supabaseServiceKey || !supabaseAnonKey) {
     return res.status(500).json({ error: "Supabase not configured" });
   }
 
@@ -18,7 +19,7 @@ export async function requireAuth(req, res, next) {
     const response = await fetch(`${supabaseUrl}/auth/v1/user`, {
       headers: {
         Authorization: `Bearer ${token}`,
-        apikey: supabaseServiceKey,
+        apikey: supabaseAnonKey,
       },
     });
 
