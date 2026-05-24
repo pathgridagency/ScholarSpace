@@ -23,18 +23,14 @@ export async function requireAuth(req, res, next) {
       },
     });
 
-    const body = await response.text();
-
     if (!response.ok) {
-      console.error(`Supabase auth error ${response.status}: ${body}`);
-      return res.status(401).json({ error: "Invalid or expired token", detail: `${response.status}: ${body}` });
+      return res.status(401).json({ error: "Invalid or expired token" });
     }
 
-    let user;
-    try { user = JSON.parse(body); } catch { user = null; }
+    const user = await response.json();
 
     if (!user || !user.id) {
-      return res.status(401).json({ error: "Invalid or expired token", detail: "No user ID in response" });
+      return res.status(401).json({ error: "Invalid or expired token" });
     }
 
     req.user = {
@@ -43,8 +39,7 @@ export async function requireAuth(req, res, next) {
     };
 
     next();
-  } catch (e) {
-    console.error(`Auth middleware exception:`, e);
-    return res.status(401).json({ error: "Invalid or expired token", detail: e instanceof Error ? e.message : String(e) });
+  } catch {
+    return res.status(401).json({ error: "Invalid or expired token" });
   }
 }
