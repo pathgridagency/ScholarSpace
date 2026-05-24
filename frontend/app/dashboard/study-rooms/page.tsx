@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import { api } from "@/lib/api";
 import type { StudyRoom } from "@/lib/types";
 
@@ -31,11 +32,14 @@ export default function StudyRoomsPage() {
 
   const createRoom = async (e: React.FormEvent) => {
     e.preventDefault();
-    await api.post("/studyrooms", { topic });
-    setTopic(""); setShowCreate(false); loadRooms();
+    const room = await api.post("/studyrooms", { topic });
+    setTopic(""); setShowCreate(false);
+    window.location.href = `/dashboard/study-rooms/${room.id}`;
   };
 
-  const endRoom = async (id: string) => {
+  const endRoom = async (e: React.MouseEvent, id: string) => {
+    e.preventDefault();
+    e.stopPropagation();
     if (!confirm("End this study room?")) return;
     await api.patch(`/studyrooms/${id}/end`);
     loadRooms();
@@ -92,7 +96,11 @@ export default function StudyRoomsPage() {
               const isHost = room.hostId === myId;
 
               return (
-                <div key={room.id} className="card-static p-5">
+                <Link
+                  key={room.id}
+                  href={`/dashboard/study-rooms/${room.id}`}
+                  className="card-static p-5 block transition-all hover:shadow-md hover:-translate-y-0.5"
+                >
                   <div className="flex items-center gap-3">
                     <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50">
                       <span className="h-3 w-3 rounded-full bg-emerald-400 animate-pulse-soft" />
@@ -107,13 +115,13 @@ export default function StudyRoomsPage() {
                   </div>
                   <div className="mt-4 flex items-center justify-between border-t border-gray-50 pt-3">
                     {isHost ? (
-                      <button onClick={() => endRoom(room.id)} className="rounded-lg px-3 py-1 text-xs font-medium text-red-500 transition-colors hover:bg-red-50">End Room</button>
+                      <button onClick={(e) => endRoom(e, room.id)} className="rounded-lg px-3 py-1 text-xs font-medium text-red-500 transition-colors hover:bg-red-50">End Room</button>
                     ) : (
-                      <span className="text-xs text-gray-400">Study session in progress</span>
+                      <span className="rounded-lg bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-600">Join →</span>
                     )}
                     <span className="text-xs text-gray-300">#{room.id.slice(0, 8)}</span>
                   </div>
-                </div>
+                </Link>
               );
             })}
           </div>
