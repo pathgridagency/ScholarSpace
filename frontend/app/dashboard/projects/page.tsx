@@ -13,6 +13,7 @@ export default function ProjectsPage() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [taskTitle, setTaskTitle] = useState("");
+  const [taskDueDate, setTaskDueDate] = useState("");
   const [loading, setLoading] = useState(true);
   const [showMembers, setShowMembers] = useState(false);
   const [showAddMember, setShowAddMember] = useState(false);
@@ -38,63 +39,72 @@ export default function ProjectsPage() {
     e.preventDefault();
     const p = await api.post("/projects", { name, description });
     setProjects((prev) => [p, ...prev]);
-    setName("");
-    setDescription("");
-    setShowCreate(false);
+    setName(""); setDescription(""); setShowCreate(false);
   };
 
   const createTask = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedProject) return;
-    await api.post(`/projects/${selectedProject.id}/tasks`, { title: taskTitle });
-    setTaskTitle("");
-    const data = await api.get(`/projects/${selectedProject.id}/tasks`);
-    setBoard(data);
+    await api.post(`/projects/${selectedProject.id}/tasks`, { title: taskTitle, dueDate: taskDueDate || undefined });
+    setTaskTitle(""); setTaskDueDate("");
+    setBoard(await api.get(`/projects/${selectedProject.id}/tasks`));
   };
 
   const updateTaskStatus = async (taskId: string, status: string) => {
     if (!selectedProject) return;
     await api.patch(`/projects/${selectedProject.id}/tasks/${taskId}`, { status });
-    const data = await api.get(`/projects/${selectedProject.id}/tasks`);
-    setBoard(data);
+    setBoard(await api.get(`/projects/${selectedProject.id}/tasks`));
   };
 
   const updateTaskAssignee = async (taskId: string, assignedToId: string | null) => {
     if (!selectedProject) return;
     await api.patch(`/projects/${selectedProject.id}/tasks/${taskId}`, { assignedToId });
-    const data = await api.get(`/projects/${selectedProject.id}/tasks`);
-    setBoard(data);
+    setBoard(await api.get(`/projects/${selectedProject.id}/tasks`));
     setSelectedTask(null);
+  };
+
+  const updateTaskDescription = async (taskId: string, description: string) => {
+    if (!selectedProject) return;
+    await api.patch(`/projects/${selectedProject.id}/tasks/${taskId}`, { description });
+    setBoard(await api.get(`/projects/${selectedProject.id}/tasks`));
+  };
+
+  const deleteTask = async (taskId: string) => {
+    if (!selectedProject || !confirm("Delete this task?")) return;
+    await api.delete(`/projects/${selectedProject.id}/tasks/${taskId}`);
+    setSelectedTask(null);
+    setBoard(await api.get(`/projects/${selectedProject.id}/tasks`));
   };
 
   const addMember = async (targetUserId: string) => {
     if (!selectedProject) return;
     await api.post(`/projects/${selectedProject.id}/members`, { targetUserId, role: "EDITOR" });
-    setShowAddMember(false);
-    setSearchQuery("");
-    setSearchResults([]);
-    const detail = await api.get(`/projects/${selectedProject.id}`);
-    setProjectDetail(detail);
+    setShowAddMember(false); setSearchQuery(""); setSearchResults([]);
+    setProjectDetail(await api.get(`/projects/${selectedProject.id}`));
   };
 
   const removeMember = async (targetUserId: string) => {
     if (!selectedProject) return;
     await api.delete(`/projects/${selectedProject.id}/members/${targetUserId}`);
-    const detail = await api.get(`/projects/${selectedProject.id}`);
-    setProjectDetail(detail);
+    setProjectDetail(await api.get(`/projects/${selectedProject.id}`));
+  };
+
+  const deleteProject = async () => {
+    if (!selectedProject || !confirm("Delete this project and all its tasks?")) return;
+    await api.delete(`/projects/${selectedProject.id}`);
+    setSelectedProject(null); setBoard(null); setProjectDetail(null);
+    setProjects(await api.get("/projects"));
   };
 
   const searchUsers = async (q: string) => {
     setSearchQuery(q);
     if (q.length < 2) { setSearchResults([]); return; }
-    const results = await api.get(`/users/search?q=${encodeURIComponent(q)}`);
-    setSearchResults(results);
+    setSearchResults(await api.get(`/users/search?q=${encodeURIComponent(q)}`));
   };
 
   const statusLabels: Record<string, string> = {
     TODO: "To Do", IN_PROGRESS: "In Progress", REVIEW: "Review", DONE: "Done",
   };
-
   const statusColors: Record<string, string> = {
     TODO: "bg-gray-100 text-gray-700 border-gray-200",
     IN_PROGRESS: "bg-blue-50 text-blue-700 border-blue-200",
@@ -112,7 +122,6 @@ export default function ProjectsPage() {
 
   if (selectedProject && board) {
     const columns = ["TODO", "IN_PROGRESS", "REVIEW", "DONE"] as const;
-    const currentUserId = projectDetail?.members?.find(m => m.role === "OWNER")?.userId;
 
     return (
       <div className="min-h-screen">
@@ -128,38 +137,28 @@ export default function ProjectsPage() {
                 <p className="text-sm text-gray-500">{selectedProject.description || "No description"}</p>
               </div>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               <button onClick={() => setShowMembers(!showMembers)} className="btn-secondary text-xs">
                 👥 {projectDetail?.members?.length || 0} members
               </button>
+              <button onClick={deleteProject} className="rounded-lg px-3 py-1.5 text-xs font-medium text-red-400 hover:bg-red-50 hover:text-red-600">Delete</button>
             </div>
           </div>
         </div>
 
         {showMembers && (
           <div className="border-b border-gray-100 bg-gray-50/50 px-8 py-4">
-            <div className="flex items-center justify-between mb-3">
+            <div className="mb-3 flex items-center justify-between">
               <h3 className="text-sm font-semibold text-gray-700">Project Members</h3>
               <button onClick={() => setShowAddMember(true)} className="text-xs font-medium text-indigo-600 hover:text-indigo-500">+ Add member</button>
             </div>
-
             {showAddMember && (
               <div className="mb-3">
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => searchUsers(e.target.value)}
-                  placeholder="Search users by email..."
-                  className="input-focus block w-full rounded-xl border border-gray-200 px-4 py-2 text-sm"
-                />
+                <input type="text" value={searchQuery} onChange={(e) => searchUsers(e.target.value)} placeholder="Search users by email..." className="input-focus block w-full rounded-xl border border-gray-200 px-4 py-2 text-sm" />
                 {searchResults.length > 0 && (
                   <div className="mt-2 rounded-xl border border-gray-100 bg-white shadow-sm">
                     {searchResults.map((u) => (
-                      <button
-                        key={u.id}
-                        onClick={() => addMember(u.id)}
-                        className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 first:rounded-t-xl last:rounded-b-xl"
-                      >
+                      <button key={u.id} onClick={() => addMember(u.id)} className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 first:rounded-t-xl last:rounded-b-xl">
                         <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gray-100 text-xs font-medium">{u.firstName?.charAt(0) || "?"}</div>
                         <div className="text-left">
                           <p className="font-medium">{u.firstName} {u.lastName}</p>
@@ -171,28 +170,19 @@ export default function ProjectsPage() {
                 )}
               </div>
             )}
-
             <div className="space-y-2">
               {projectDetail?.members?.map((m: ProjectMember) => (
                 <div key={m.userId} className="flex items-center justify-between rounded-xl bg-white px-4 py-2.5 shadow-sm">
                   <div className="flex items-center gap-3">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 text-xs font-bold text-white">
-                      {m.user.firstName?.charAt(0) || "?"}
-                    </div>
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 text-xs font-bold text-white">{m.user.firstName?.charAt(0) || "?"}</div>
                     <div>
                       <p className="text-sm font-medium text-gray-900">{m.user.firstName} {m.user.lastName}</p>
                       <p className="text-xs text-gray-400">{m.user.email}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                      m.role === "OWNER" ? "bg-indigo-50 text-indigo-700" :
-                      m.role === "EDITOR" ? "bg-blue-50 text-blue-700" :
-                      "bg-gray-100 text-gray-600"
-                    }`}>{m.role}</span>
-                    {m.role !== "OWNER" && (
-                      <button onClick={() => removeMember(m.userId)} className="text-xs text-red-400 hover:text-red-600">✕</button>
-                    )}
+                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${m.role === "OWNER" ? "bg-indigo-50 text-indigo-700" : m.role === "EDITOR" ? "bg-blue-50 text-blue-700" : "bg-gray-100 text-gray-600"}`}>{m.role}</span>
+                    {m.role !== "OWNER" && <button onClick={() => removeMember(m.userId)} className="text-xs text-red-400 hover:text-red-600">✕</button>}
                   </div>
                 </div>
               ))}
@@ -202,15 +192,9 @@ export default function ProjectsPage() {
 
         <div className="px-8 py-6">
           <form onSubmit={createTask} className="mb-6 flex gap-3">
-            <input
-              type="text"
-              value={taskTitle}
-              onChange={(e) => setTaskTitle(e.target.value)}
-              placeholder="Add a new task..."
-              required
-              className="input-focus flex-1 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm"
-            />
-            <button type="submit" className="btn-primary">Add Task</button>
+            <input type="text" value={taskTitle} onChange={(e) => setTaskTitle(e.target.value)} placeholder="Add a new task..." required className="input-focus flex-1 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm" />
+            <input type="date" value={taskDueDate} onChange={(e) => setTaskDueDate(e.target.value)} className="input-focus rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm" />
+            <button type="submit" className="btn-primary">Add</button>
           </form>
 
           <div className="grid grid-cols-4 gap-4">
@@ -222,43 +206,27 @@ export default function ProjectsPage() {
                 </div>
                 <div className="space-y-3">
                   {board[col].map((task) => (
-                    <div
-                      key={task.id}
-                      className="card-static group cursor-pointer p-4 transition-all duration-200 hover:shadow-md"
-                      onClick={() => setSelectedTask(task)}
-                    >
+                    <div key={task.id} className="card-static group cursor-pointer p-4 transition-all duration-200 hover:shadow-md" onClick={() => setSelectedTask(task)}>
                       <div className="flex items-start justify-between">
                         <p className="text-sm font-medium text-gray-900">{task.title}</p>
                         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          {col !== "TODO" && (
-                            <button onClick={(e) => { e.stopPropagation(); updateTaskStatus(task.id, columns[columns.indexOf(col) - 1]); }} className="rounded p-1 text-xs text-gray-400 hover:text-gray-600" title="Move left">←</button>
-                          )}
-                          {col !== "DONE" && (
-                            <button onClick={(e) => { e.stopPropagation(); updateTaskStatus(task.id, columns[columns.indexOf(col) + 1]); }} className="rounded p-1 text-xs text-gray-400 hover:text-gray-600" title="Move right">→</button>
-                          )}
+                          {col !== "TODO" && <button onClick={(e) => { e.stopPropagation(); updateTaskStatus(task.id, columns[columns.indexOf(col) - 1]); }} className="rounded p-1 text-xs text-gray-400 hover:text-gray-600">←</button>}
+                          {col !== "DONE" && <button onClick={(e) => { e.stopPropagation(); updateTaskStatus(task.id, columns[columns.indexOf(col) + 1]); }} className="rounded p-1 text-xs text-gray-400 hover:text-gray-600">→</button>}
                         </div>
                       </div>
-                      {task.description && <p className="mt-1 text-xs text-gray-400">{task.description}</p>}
+                      {task.description && <p className="mt-1 text-xs text-gray-400 line-clamp-2">{task.description}</p>}
                       <div className="mt-3 flex items-center justify-between">
                         {task.assignedTo ? (
                           <div className="flex items-center gap-1.5">
-                            <div className="flex h-5 w-5 items-center justify-center rounded-full bg-gray-200 text-[9px] font-medium text-gray-600">
-                              {task.assignedTo.firstName?.charAt(0) || "?"}
-                            </div>
+                            <div className="flex h-5 w-5 items-center justify-center rounded-full bg-gray-200 text-[9px] font-medium text-gray-600">{task.assignedTo.firstName?.charAt(0) || "?"}</div>
                             <span className="text-[10px] text-gray-400">{task.assignedTo.firstName}</span>
                           </div>
-                        ) : (
-                          <span className="text-[10px] text-gray-300">Unassigned</span>
-                        )}
-                        {task.dueDate && (
-                          <span className="text-[10px] text-gray-400">{new Date(task.dueDate).toLocaleDateString()}</span>
-                        )}
+                        ) : <span className="text-[10px] text-gray-300">Unassigned</span>}
+                        {task.dueDate && <span className="text-[10px] text-gray-400">{new Date(task.dueDate).toLocaleDateString()}</span>}
                       </div>
                     </div>
                   ))}
-                  {board[col].length === 0 && (
-                    <div className="rounded-xl border-2 border-dashed border-gray-100 p-6 text-center text-xs text-gray-300">No tasks</div>
-                  )}
+                  {board[col].length === 0 && <div className="rounded-xl border-2 border-dashed border-gray-100 p-6 text-center text-xs text-gray-300">No tasks</div>}
                 </div>
               </div>
             ))}
@@ -270,35 +238,37 @@ export default function ProjectsPage() {
             <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl animate-fade-in" onClick={(e) => e.stopPropagation()}>
               <div className="flex items-center justify-between mb-4">
                 <span className={`rounded-full border px-2.5 py-0.5 text-xs font-medium ${statusColors[selectedTask.status]}`}>{statusLabels[selectedTask.status]}</span>
-                <button onClick={() => setSelectedTask(null)} className="text-gray-400 hover:text-gray-600">✕</button>
+                <div className="flex gap-2">
+                  <button onClick={() => deleteTask(selectedTask.id)} className="text-xs text-red-400 hover:text-red-600">Delete</button>
+                  <button onClick={() => setSelectedTask(null)} className="text-gray-400 hover:text-gray-600">✕</button>
+                </div>
               </div>
               <h2 className="text-lg font-semibold text-gray-900">{selectedTask.title}</h2>
-              {selectedTask.description && <p className="mt-2 text-sm text-gray-500">{selectedTask.description}</p>}
+              <div className="mt-3">
+                <label className="text-xs font-medium text-gray-500">Description</label>
+                <textarea
+                  defaultValue={selectedTask.description || ""}
+                  onBlur={(e) => { if (e.target.value !== (selectedTask.description || "")) updateTaskDescription(selectedTask.id, e.target.value); }}
+                  placeholder="Add a description..."
+                  rows={3}
+                  className="input-focus mt-1 block w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm resize-none"
+                />
+              </div>
+              {selectedTask.dueDate && <p className="mt-2 text-xs text-gray-400">Due: {new Date(selectedTask.dueDate).toLocaleDateString()}</p>}
               <div className="mt-4 space-y-3">
                 <div>
                   <label className="text-xs font-medium text-gray-500">Assignee</label>
                   <div className="mt-1 flex flex-wrap gap-2">
-                    <button
-                      onClick={() => updateTaskAssignee(selectedTask.id, null)}
-                      className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${!selectedTask.assignedToId ? "bg-indigo-50 text-indigo-700" : "text-gray-500 hover:bg-gray-50"}`}
-                    >Unassigned</button>
+                    <button onClick={() => updateTaskAssignee(selectedTask.id, null)} className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${!selectedTask.assignedToId ? "bg-indigo-50 text-indigo-700" : "text-gray-500 hover:bg-gray-50"}`}>Unassigned</button>
                     {projectDetail?.members?.map((m: ProjectMember) => (
-                      <button
-                        key={m.userId}
-                        onClick={() => updateTaskAssignee(selectedTask.id, m.userId)}
-                        className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${selectedTask.assignedToId === m.userId ? "bg-indigo-50 text-indigo-700" : "text-gray-500 hover:bg-gray-50"}`}
-                      >{m.user.firstName} {m.user.lastName}</button>
+                      <button key={m.userId} onClick={() => updateTaskAssignee(selectedTask.id, m.userId)} className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${selectedTask.assignedToId === m.userId ? "bg-indigo-50 text-indigo-700" : "text-gray-500 hover:bg-gray-50"}`}>{m.user.firstName} {m.user.lastName}</button>
                     ))}
                   </div>
                 </div>
               </div>
               <div className="mt-6 flex gap-2">
-                {selectedTask.status !== "TODO" && (
-                  <button onClick={() => { updateTaskStatus(selectedTask.id, columns[columns.indexOf(selectedTask.status) - 1]); setSelectedTask(null); }} className="btn-secondary text-sm">← Move to {statusLabels[columns[columns.indexOf(selectedTask.status) - 1]]}</button>
-                )}
-                {selectedTask.status !== "DONE" && (
-                  <button onClick={() => { updateTaskStatus(selectedTask.id, columns[columns.indexOf(selectedTask.status) + 1]); setSelectedTask(null); }} className="btn-primary text-sm">Move to {statusLabels[columns[columns.indexOf(selectedTask.status) + 1]]} →</button>
-                )}
+                {selectedTask.status !== "TODO" && <button onClick={() => { updateTaskStatus(selectedTask.id, columns[columns.indexOf(selectedTask.status) - 1]); setSelectedTask(null); }} className="btn-secondary text-sm">← {statusLabels[columns[columns.indexOf(selectedTask.status) - 1]]}</button>}
+                {selectedTask.status !== "DONE" && <button onClick={() => { updateTaskStatus(selectedTask.id, columns[columns.indexOf(selectedTask.status) + 1]); setSelectedTask(null); }} className="btn-primary text-sm">{statusLabels[columns[columns.indexOf(selectedTask.status) + 1]]} →</button>}
               </div>
             </div>
           </div>
@@ -358,13 +328,9 @@ export default function ProjectsPage() {
                 </div>
                 <div className="mt-3 flex -space-x-1.5">
                   {project.members?.slice(0, 4).map((m) => (
-                    <div key={m.userId} className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-white bg-gray-100 text-[9px] font-medium text-gray-600">
-                      {m.user.firstName?.charAt(0) || "?"}
-                    </div>
+                    <div key={m.userId} className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-white bg-gray-100 text-[9px] font-medium text-gray-600">{m.user.firstName?.charAt(0) || "?"}</div>
                   ))}
-                  {(project.members?.length || 0) > 4 && (
-                    <div className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-white bg-gray-50 text-[9px] text-gray-400">+{project.members.length - 4}</div>
-                  )}
+                  {(project.members?.length || 0) > 4 && <div className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-white bg-gray-50 text-[9px] text-gray-400">+{project.members.length - 4}</div>}
                 </div>
               </button>
             ))}

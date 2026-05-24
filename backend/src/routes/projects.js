@@ -219,6 +219,38 @@ router.patch("/:projectId/tasks/:taskId", async (req, res) => {
   res.json(task);
 });
 
+router.delete("/:id", async (req, res) => {
+  const { userId } = req.user;
+  const { id } = req.params;
+
+  const membership = await prisma.projectMember.findUnique({
+    where: { userId_projectId: { userId, projectId: id } },
+  });
+
+  if (!membership || membership.role !== "OWNER") {
+    return res.status(403).json({ error: "Only the owner can delete the project" });
+  }
+
+  await prisma.project.delete({ where: { id } });
+  res.status(204).end();
+});
+
+router.delete("/:projectId/tasks/:taskId", async (req, res) => {
+  const { userId } = req.user;
+  const { projectId, taskId } = req.params;
+
+  const membership = await prisma.projectMember.findUnique({
+    where: { userId_projectId: { userId, projectId } },
+  });
+
+  if (!membership || membership.role === "VIEWER") {
+    return res.status(403).json({ error: "Viewers cannot delete tasks" });
+  }
+
+  await prisma.task.delete({ where: { id: taskId } });
+  res.status(204).end();
+});
+
 router.post("/:id/members", async (req, res) => {
   const { userId } = req.user;
   const { id } = req.params;

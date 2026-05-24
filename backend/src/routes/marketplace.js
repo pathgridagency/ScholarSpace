@@ -84,6 +84,19 @@ router.post("/", async (req, res) => {
   res.status(201).json(listing);
 });
 
+router.delete("/:id", async (req, res) => {
+  const { userId } = req.user;
+  const { id } = req.params;
+
+  const listing = await prisma.marketplaceListing.findUnique({ where: { id } });
+
+  if (!listing) return res.status(404).json({ error: "Listing not found" });
+  if (listing.sellerId !== userId) return res.status(403).json({ error: "Only the seller can delete this listing" });
+
+  await prisma.marketplaceListing.delete({ where: { id } });
+  res.status(204).end();
+});
+
 router.patch("/:id/status", async (req, res) => {
   const { userId } = req.user;
   const { id } = req.params;

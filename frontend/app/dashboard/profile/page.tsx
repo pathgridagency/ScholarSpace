@@ -3,29 +3,33 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import type { UserProfile } from "@/lib/types";
-import Link from "next/link";
+
+interface University { id: string; name: string; domain: string }
 
 export default function ProfilePage() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [universities, setUniversities] = useState<University[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
   const [form, setForm] = useState({
-    firstName: "",
-    lastName: "",
-    major: "",
-    gradYear: "",
+    firstName: "", lastName: "", major: "", gradYear: "", universityId: "",
   });
 
   useEffect(() => {
-    api.get("/users/me").then((data) => {
-      setProfile(data);
+    Promise.all([
+      api.get("/users/me"),
+      api.get("/universities"),
+    ]).then(([userData, uniData]) => {
+      setProfile(userData);
+      setUniversities(uniData);
       setForm({
-        firstName: data.firstName || "",
-        lastName: data.lastName || "",
-        major: data.major || "",
-        gradYear: data.gradYear?.toString() || "",
+        firstName: userData.firstName || "",
+        lastName: userData.lastName || "",
+        major: userData.major || "",
+        gradYear: userData.gradYear?.toString() || "",
+        universityId: userData.university?.id || "",
       });
     }).catch(console.error).finally(() => setLoading(false));
   }, []);
@@ -40,6 +44,7 @@ export default function ProfilePage() {
         lastName: form.lastName,
         major: form.major || null,
         gradYear: form.gradYear ? parseInt(form.gradYear) : null,
+        universityId: form.universityId || null,
       });
       setProfile(updated);
       setMessage("Profile saved!");
@@ -59,9 +64,9 @@ export default function ProfilePage() {
     );
   }
 
-  const initials = profile
-    ? (form.firstName?.charAt(0)?.toUpperCase() || profile.email?.charAt(0).toUpperCase() || "?")
-    : "?";
+  const initials = form.firstName?.charAt(0)?.toUpperCase() || profile?.email?.charAt(0)?.toUpperCase() || "?";
+  const displayName = `${form.firstName} ${form.lastName}`.trim() || "Set your name";
+  const selectedUni = universities.find(u => u.id === form.universityId);
 
   return (
     <div>
@@ -75,71 +80,63 @@ export default function ProfilePage() {
       </div>
 
       <div className="mx-auto max-w-2xl px-8 py-8">
-        <div className="card-static p-8">
-          <div className="flex items-center gap-6">
-            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-2xl font-bold text-white shadow-md">
+        <div className="card-static overflow-hidden">
+          <div className="gradient-subtle px-8 py-10 text-center">
+            <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-3xl font-bold text-white shadow-lg ring-4 ring-white">
               {initials}
             </div>
-            <div>
-              <h2 className="text-xl font-bold text-gray-900">
-                {form.firstName || form.lastName
-                  ? `${form.firstName} ${form.lastName}`.trim()
-                  : "Set your name"}
-              </h2>
-              <p className="text-sm text-gray-500">{profile?.email}</p>
-              {profile?.stats && (
-                <div className="mt-2 flex gap-4 text-xs text-gray-400">
-                  <span>{profile.stats.projects} projects</span>
-                  <span>{profile.stats.listings} listings</span>
-                  <span>{profile.stats.pendingTasks} active tasks</span>
-                </div>
-              )}
-            </div>
+            <h2 className="mt-4 text-xl font-bold text-gray-900">{displayName}</h2>
+            <p className="text-sm text-gray-500">{profile?.email}</p>
+            {selectedUni && <p className="mt-1 text-xs text-gray-400">{selectedUni.name}</p>}
           </div>
 
-          <form onSubmit={save} className="mt-8 space-y-5">
+          {profile?.stats && (
+            <div className="grid grid-cols-4 border-b border-gray-100">
+              {[
+                { label: "Projects", value: profile.stats.projects },
+                { label: "Listings", value: profile.stats.listings },
+                { label: "Active Rooms", value: profile.stats.activeRooms },
+                { label: "Pending Tasks", value: profile.stats.pendingTasks },
+              ].map((s) => (
+                <div key={s.label} className="border-r border-gray-100 py-4 text-center last:border-r-0">
+                  <p className="text-xl font-bold text-gray-900">{s.value}</p>
+                  <p className="text-xs text-gray-400">{s.label}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <form onSubmit={save} className="space-y-5 p-8">
             <div className="grid gap-5 sm:grid-cols-2">
               <div>
                 <label className="block text-sm font-medium text-gray-700">First name</label>
-                <input
-                  type="text"
-                  value={form.firstName}
-                  onChange={(e) => setForm({ ...form, firstName: e.target.value })}
-                  className="input-focus mt-1.5 block w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm"
-                />
+                <input type="text" value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} className="input-focus mt-1.5 block w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Last name</label>
-                <input
-                  type="text"
-                  value={form.lastName}
-                  onChange={(e) => setForm({ ...form, lastName: e.target.value })}
-                  className="input-focus mt-1.5 block w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm"
-                />
+                <input type="text" value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} className="input-focus mt-1.5 block w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm" />
               </div>
             </div>
 
             <div className="grid gap-5 sm:grid-cols-2">
               <div>
                 <label className="block text-sm font-medium text-gray-700">Major</label>
-                <input
-                  type="text"
-                  value={form.major}
-                  onChange={(e) => setForm({ ...form, major: e.target.value })}
-                  placeholder="e.g. Computer Science"
-                  className="input-focus mt-1.5 block w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm"
-                />
+                <input type="text" value={form.major} onChange={(e) => setForm({ ...form, major: e.target.value })} placeholder="e.g. Computer Science" className="input-focus mt-1.5 block w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Grad year</label>
-                <input
-                  type="number"
-                  value={form.gradYear}
-                  onChange={(e) => setForm({ ...form, gradYear: e.target.value })}
-                  placeholder="e.g. 2028"
-                  className="input-focus mt-1.5 block w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm"
-                />
+                <input type="number" value={form.gradYear} onChange={(e) => setForm({ ...form, gradYear: e.target.value })} placeholder="e.g. 2028" className="input-focus mt-1.5 block w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm" />
               </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700">University</label>
+              <select value={form.universityId} onChange={(e) => setForm({ ...form, universityId: e.target.value })} className="input-focus mt-1.5 block w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm">
+                <option value="">Select your university</option>
+                {universities.map((u) => (
+                  <option key={u.id} value={u.id}>{u.name}</option>
+                ))}
+              </select>
             </div>
 
             <div className="flex items-center gap-4 pt-2">
@@ -147,9 +144,7 @@ export default function ProfilePage() {
                 {saving ? "Saving..." : "Save changes"}
               </button>
               {message && (
-                <span className={`animate-fade-in text-sm ${message === "Profile saved!" ? "text-emerald-600" : "text-red-600"}`}>
-                  {message}
-                </span>
+                <span className={`animate-fade-in text-sm ${message === "Profile saved!" ? "text-emerald-600" : "text-red-600"}`}>{message}</span>
               )}
             </div>
           </form>
