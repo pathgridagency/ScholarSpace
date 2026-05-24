@@ -1,0 +1,142 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ProjectStatus {
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+}
+
+enum MemberRole {
+  OWNER
+  EDITOR
+  VIEWER
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  REVIEW
+  DONE
+}
+
+enum ListingType {
+  TEXTBOOK
+  NOTES
+  STUDY_GUIDE
+}
+
+enum ListingStatus {
+  AVAILABLE
+  PENDING
+  SOLD
+}
+
+model University {
+  id       String @id @default(uuid()) @db.Uuid
+  name     String
+  domain   String @unique
+  users    User[]
+}
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  email        String   @unique
+  passwordHash String
+  firstName    String
+  lastName     String
+  universityId String   @db.Uuid
+  major        String?
+  gradYear     Int?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  university           University           @relation(fields: [universityId], references: [id])
+  createdProjects      Project[]            @relation("ProjectCreator")
+  projectMemberships   ProjectMember[]
+  assignedTasks        Task[]               @relation("TaskAssignee")
+  hostedStudyRooms     StudyRoom[]
+  marketplaceListings  MarketplaceListing[]
+
+  @@index([email])
+  @@index([universityId])
+}
+
+model Project {
+  id          String        @id @default(uuid()) @db.Uuid
+  name        String
+  description String?
+  status      ProjectStatus @default(ACTIVE)
+  createdById String   @db.Uuid
+  createdAt   DateTime @default(now())
+
+  creator User            @relation("ProjectCreator", fields: [createdById], references: [id])
+  tasks   Task[]
+  members ProjectMember[]
+
+  @@index([createdById])
+}
+
+model ProjectMember {
+  userId    String     @db.Uuid
+  projectId String     @db.Uuid
+  role      MemberRole @default(VIEWER)
+  joinedAt  DateTime   @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@id([userId, projectId])
+  @@index([projectId])
+}
+
+model Task {
+  id           String     @id @default(uuid()) @db.Uuid
+  projectId    String     @db.Uuid
+  assignedToId String?    @db.Uuid
+  title        String
+  description  String?
+  status       TaskStatus @default(TODO)
+  dueDate      DateTime?
+  createdAt    DateTime   @default(now())
+
+  project    Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assignedTo User?   @relation("TaskAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+
+  @@index([projectId, status])
+  @@index([assignedToId])
+}
+
+model StudyRoom {
+  id        String   @id @default(uuid()) @db.Uuid
+  hostId    String   @db.Uuid
+  topic     String
+  isActive  Boolean  @default(true)
+  startedAt DateTime @default(now())
+
+  host User @relation(fields: [hostId], references: [id], onDelete: Cascade)
+
+  @@index([hostId])
+}
+
+model MarketplaceListing {
+  id        String        @id @default(uuid()) @db.Uuid
+  sellerId  String        @db.Uuid
+  type      ListingType
+  title     String
+  isbn      String?
+  price     Decimal       @db.Decimal(8, 2)
+  status    ListingStatus @default(AVAILABLE)
+  createdAt DateTime      @default(now())
+
+  seller User @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+
+  @@index([sellerId])
+  @@index([status])
+}

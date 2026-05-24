@@ -5,3 +5,5 @@ node_modules/
 backend/node_modules/
 backend/prisma/migrations/
 .opencode/memory/
+frontend/prisma/generated/
+frontend/prisma/migrations/
