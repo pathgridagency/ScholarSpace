@@ -39,10 +39,7 @@ export default async function DashboardPage() {
   const cookieStore = await cookies();
   const supabase = createClient(cookieStore);
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
+  const user = supabase ? (await supabase.auth.getUser()).data.user : null;
   const initials = user?.email?.charAt(0).toUpperCase() ?? "S";
   const name = user?.email?.split("@")[0] ?? "Student";
 
