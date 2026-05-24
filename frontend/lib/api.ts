@@ -4,6 +4,7 @@ const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 async function getToken(): Promise<string | null> {
   const supabase = createClient();
+  if (!supabase) return null;
   const { data } = await supabase.auth.getSession();
   return data.session?.access_token ?? null;
 }

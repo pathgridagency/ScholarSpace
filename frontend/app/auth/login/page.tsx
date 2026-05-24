@@ -18,6 +18,12 @@ export default function LoginPage() {
     setLoading(true);
 
     const supabase = createClient();
+    if (!supabase) {
+      setError("Supabase is not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY.");
+      setLoading(false);
+      return;
+    }
+
     const { error } = await supabase.auth.signInWithPassword({ email, password });
 
     if (error) {
