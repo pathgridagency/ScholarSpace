@@ -22,7 +22,7 @@ router.get("/", async (_req, res) => {
 
 router.post("/", async (req, res) => {
   const { userId } = req.user;
-  const { topic } = req.body;
+  const { topic, mode } = req.body;
 
   if (!topic) {
     return res.status(400).json({ error: "Topic is required" });
@@ -37,7 +37,7 @@ router.post("/", async (req, res) => {
     },
   });
 
-  res.status(201).json(room);
+  res.status(201).json({ ...room, mode: mode || "SILENT_ACCOUNTABILITY" });
 });
 
 router.patch("/:id/end", async (req, res) => {
@@ -52,6 +52,28 @@ router.patch("/:id/end", async (req, res) => {
 
   if (room.hostId !== userId) {
     return res.status(403).json({ error: "Only the host can end the study room" });
+  }
+
+  const updated = await prisma.studyRoom.update({
+    where: { id },
+    data: { isActive: false },
+  });
+
+  res.json(updated);
+});
+
+router.put("/:id/close", async (req, res) => {
+  const { userId } = req.user;
+  const { id } = req.params;
+
+  const room = await prisma.studyRoom.findUnique({ where: { id } });
+
+  if (!room) {
+    return res.status(404).json({ error: "Study room not found" });
+  }
+
+  if (room.hostId !== userId) {
+    return res.status(403).json({ error: "Only the host can close the study room" });
   }
 
   const updated = await prisma.studyRoom.update({
